@@ -25,6 +25,57 @@ namespace RGR_BD
                 Console.WriteLine("Помилка при закритті з'єднання з базою данних");
             }
         }
+        public bool AddDataToTableModel(List<(string Column, string Value)> values,string table_name)
+        {
+            try
+            {
+                connection.Open();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Помилка при підключенні до бази данних");
+                return true;
+            }
+            Dictionary<string, string> columnTypes = GetColumnTypes(table_name);
+            try
+            {
+                List<string> setClauses = new List<string>();
+                List<string> setValues = new List<string>();
+                foreach (var column in values)
+                {
+                    setClauses.Add($"{column.Column}");
+                    setValues.Add($"@{column.Column}");
+                }
+                string setClause_str = string.Join(",", setClauses);
+                string setValues_str = string.Join(",", setValues);
+                string query = $"INSERT INTO {table_name} ({setClause_str}) VALUES ({setValues_str});";
+                using (var cmd = new NpgsqlCommand(query, connection))
+                {
+                    foreach (var (Column, Value) in values)
+                    {
+                        cmd.Parameters.AddWithValue($"@{Column}", GetConvertedValues(columnTypes, Column, Value));
+                    }
+                    cmd.ExecuteNonQuery();
+                }
+
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Помилка при додаванні данних " + ex.Message);
+                return true;
+            }
+            try
+            {
+                connection.Close();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Помилка при закритті з'єднання з базою данних");
+                return true;
+            }
+
+            return false;
+        }
         private Dictionary<string, string> GetColumnTypes(string tableName)
         {
             var columnTypes = new Dictionary<string, string>();
@@ -49,7 +100,7 @@ namespace RGR_BD
 
             return columnTypes;
         }
-        private string GetPrimaryKeyColumn(string table_name)
+        public string GetPrimaryKeyColumn(string table_name)
         {
             string pk_str = string.Empty;
             try
@@ -122,6 +173,9 @@ namespace RGR_BD
                         break;
                     case "boolean":
                         convertedValue = Convert.ToBoolean(value);
+                        break;
+                    case "date":
+                        convertedValue = Convert.ToDateTime(value);
                         break;
                     case "timestamp with time zone":
                         if (DateTimeOffset.TryParse(value, out var parsedValue))

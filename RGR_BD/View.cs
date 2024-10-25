@@ -50,11 +50,12 @@ namespace RGR_BD
             Console.WriteLine(text_cur_table);
             Console.SetCursorPosition(0, 0);
         }
-        public List<(string Column , string Value)> GetValuesForTable(List<string> columnsname)
+        public List<(string Column , string Value)> GetValuesForTable(List<string> columnsname, bool flag)
         {
             List<(string Column, string Value)> setColumns = new List<(string Column, string Value)>();
-            Console.WriteLine("Якщо хочете залишите старе значення, залишти строку пустою для відповідної колонки");
-            foreach(var column in columnsname)
+            if(flag) Console.WriteLine("Якщо хочете залишите старе значення, залишти строку пустою для відповідної колонки");
+            else Console.WriteLine("Задайте значення для нової строки в таблиці, pk можна пропустити");
+            foreach (var column in columnsname)
             {
                 Console.WriteLine(column+":");
                 string value = Console.ReadLine();
@@ -154,7 +155,7 @@ namespace RGR_BD
 
                 if (int.TryParse(input_choice, out choice))
                 {
-                    if (choice >= 1 && choice <= 5)
+                    if (choice >= 1 && choice <= 6)
                     {
                         Console.WriteLine($"Ви обрали опцію: {choice}");
                         Thread.Sleep(1000);
@@ -162,12 +163,12 @@ namespace RGR_BD
                     }
                     else
                     {
-                        Console.WriteLine("Будь ласка, введіть число від 1 до 5");
+                        Console.WriteLine("Будь ласка, введіть число від 1 до 6");
                         Thread.Sleep(1500);
                     }
                 }
                 {
-                    Console.WriteLine($"Будь ласка, введіть число від 1 до 5");
+                    Console.WriteLine($"Будь ласка, введіть число від 1 до 6");
                     Thread.Sleep(1000);
                 }
             }

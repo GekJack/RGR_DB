@@ -22,6 +22,14 @@ namespace RGR_BD
                         ChangeCurTable();
                         break;
                     case 2:
+                        if (current_table != "None")
+                        {
+                            AddDataToTable();
+                        }
+                        else
+                        {
+                            Console.WriteLine("Оберіть таблицю для роботу!!!");
+                        }
                         break;
                     case 3:
                         if(current_table != "None")
@@ -36,7 +44,14 @@ namespace RGR_BD
                     case 4:
                         break;
                     case 5:
-                        ShowCurTable();
+                        if (current_table != "None")
+                        {
+                            ShowCurTable();
+                        }
+                        else
+                        {
+                            Console.WriteLine("Оберіть таблицю для роботу!!!");
+                        }
                         break;
                     case 6:
                         cycle_run = !cycle_run;
@@ -44,23 +59,44 @@ namespace RGR_BD
                 }
             }
         }
+        private static bool ContinueText(bool error)
+        {
+            if (error)
+            {
+                Console.WriteLine("Continue y/n?");
+                string continue_choice = Console.ReadLine();
+                if (continue_choice.ToLower() == "y" || continue_choice.ToLower() == "yes") { model.CloseConnection(); return true ; }
+                else if (continue_choice.ToLower() == "n" || continue_choice.ToLower() == "no") Environment.Exit(0);
+            }
+            return false ;
+        }
+        private static void AddDataToTable()
+        {
+            var columnsname = model.GetColumnNameOfTable(current_table);
+            if (ContinueText(columnsname.error))
+            {
+                return;
+            }
+            var data_to_add = view.GetValuesForTable(columnsname.ColumnsName, false);
+            string pk_str_name = model.GetPrimaryKeyColumn(current_table);
+            data_to_add.RemoveAll(item => item.Column.Equals(pk_str_name));
+            bool error = model.AddDataToTableModel(data_to_add, current_table);
+            if (ContinueText(error))
+            {
+                return;
+            }
+        }
         private static void ShowCurTable()
         {
             var table = model.GetRowsOfTable(current_table, 1);
-            if (table.error)
+            if (ContinueText(table.error))
             {
-                Console.WriteLine("Continue y/n?");
-                string continue_choice = Console.ReadLine();
-                if (continue_choice.ToLower() == "y" || continue_choice.ToLower() == "yes") { model.CloseConnection(); return; }
-                else if (continue_choice.ToLower() == "n" || continue_choice.ToLower() == "no") Environment.Exit(0);
+               return ;
             }
             var table_columns = model.GetColumnNameOfTable(current_table);
-            if (table_columns.error)
+            if (ContinueText(table_columns.error))
             {
-                Console.WriteLine("Continue y/n?");
-                string continue_choice = Console.ReadLine();
-                if (continue_choice.ToLower() == "y" || continue_choice.ToLower() == "yes") { model.CloseConnection(); return; }
-                else if (continue_choice.ToLower() == "n" || continue_choice.ToLower() == "no") Environment.Exit(0);
+                return;
             }
             int i = 1;
             while (true)
@@ -83,12 +119,9 @@ namespace RGR_BD
                     Thread.Sleep(1000);
                 }
                 table = model.GetRowsOfTable(current_table, i);
-                if (table.error)
+                if (ContinueText(table.error))
                 {
-                    Console.WriteLine("Continue y/n?");
-                    string continue_choice = Console.ReadLine();
-                    if (continue_choice.ToLower() == "y" || continue_choice.ToLower() == "yes") { model.CloseConnection(); return; }
-                    else if (continue_choice.ToLower() == "n" || continue_choice.ToLower() == "no") Environment.Exit(0);
+                    return;
                 }
             }
 
@@ -96,11 +129,9 @@ namespace RGR_BD
         private static void ChangeCurTable()
         {
             var tables_res = model.GetAllTables();
-            if( tables_res.error) {
-                Console.WriteLine("Continue y/n?");
-                string continue_choice = Console.ReadLine();
-                if(continue_choice.ToLower() == "y" || continue_choice.ToLower() == "yes") { model.CloseConnection(); return; }
-                else if (continue_choice.ToLower() == "n" || continue_choice.ToLower() == "no") Environment.Exit(0);
+            if (ContinueText(tables_res.error))
+            {
+                return;
             }
             int choice = view.ShowTablesToChange(tables_res.tables);
             current_table = tables_res.tables[choice - 1];
@@ -108,20 +139,14 @@ namespace RGR_BD
         private static void UpdateTableData()
         {
             var columnsname_res = model.GetColumnNameOfTable(current_table);
-            if (columnsname_res.error)
+            if (ContinueText(columnsname_res.error))
             {
-                Console.WriteLine("Continue y/n?");
-                string continue_choice = Console.ReadLine();
-                if (continue_choice.ToLower() == "y" || continue_choice.ToLower() == "yes") { model.CloseConnection(); return; }
-                else if (continue_choice.ToLower() == "n" || continue_choice.ToLower() == "no") Environment.Exit(0);
+                return;
             }
             var rows_res = model.GetRowsOfTable(current_table, 1);
-            if (rows_res.error)
+            if (ContinueText(rows_res.error))
             {
-                Console.WriteLine("Continue y/n?");
-                string continue_choice = Console.ReadLine();
-                if (continue_choice.ToLower() == "y" || continue_choice.ToLower() == "yes") { model.CloseConnection(); return; }
-                else if (continue_choice.ToLower() == "n" || continue_choice.ToLower() == "no") Environment.Exit(0);
+                return;
             }
             int i = 1;
             (int choice, string page) res;
@@ -145,22 +170,16 @@ namespace RGR_BD
                     break;
                 }
                 rows_res = model.GetRowsOfTable(current_table, i);
-                if (rows_res.error)
+                if (ContinueText(rows_res.error))
                 {
-                    Console.WriteLine("Continue y/n?");
-                    string continue_choice = Console.ReadLine();
-                    if (continue_choice.ToLower() == "y" || continue_choice.ToLower() == "yes") { model.CloseConnection(); return; }
-                    else if (continue_choice.ToLower() == "n" || continue_choice.ToLower() == "no") Environment.Exit(0);
+                    return;
                 }
             }
-            List<(string Column, string Value)> values_res = view.GetValuesForTable(columnsname_res.ColumnsName);
+            List<(string Column, string Value)> values_res = view.GetValuesForTable(columnsname_res.ColumnsName, true);
             bool error = model.UpdateDataInTable(values_res, current_table,res.choice);
-            if (error)
+            if (ContinueText(error))
             {
-                Console.WriteLine("Continue y/n?");
-                string continue_choice = Console.ReadLine();
-                if (continue_choice.ToLower() == "y" || continue_choice.ToLower() == "yes") { model.CloseConnection(); return; }
-                else if (continue_choice.ToLower() == "n" || continue_choice.ToLower() == "no") Environment.Exit(0);
+               return;
             }
 
         }
