@@ -42,6 +42,7 @@ namespace RGR_BD
                         }
                         break;
                     case 4:
+                        DeleteData();
                         break;
                     case 5:
                         if (current_table != "None")
@@ -58,6 +59,50 @@ namespace RGR_BD
                         break;
                 }
             }
+        }
+        private static void DeleteData()
+        {
+            var columnsname_res = model.GetColumnNameOfTable(current_table);
+            if (ContinueText(columnsname_res.error))
+            {
+                return;
+            }
+            var rows_res = model.GetRowsOfTable(current_table, 1);
+            if (ContinueText(rows_res.error))
+            {
+                return;
+            }
+            int i = 1;
+            (int choice, string page) res;
+            while (true)
+            {
+                res = view.ShowRowsToAction(rows_res.rows, columnsname_res.ColumnsName);
+                if (res.page.Equals("n"))
+                {
+                    i++;
+                }
+                else if (res.page.Equals("p") && i > 1)
+                {
+                    i--;
+                }
+                else if (!res.page.Equals(" "))
+                {
+                    Console.WriteLine("Ви на першій сторінці");
+                    Thread.Sleep(1000);
+                }
+                if (res.page.Equals(" "))
+                {
+                    break;
+                }
+                rows_res = model.GetRowsOfTable(current_table, i);
+                if (ContinueText(rows_res.error))
+                {
+                    return;
+                }
+            }
+            string pk_str = model.GetPrimaryKeyColumn(current_table);
+            bool error = model.DeleteDataOfTable(current_table, res.choice, pk_str);
+            if (ContinueText(error)) return;
         }
         private static bool ContinueText(bool error)
         {
@@ -77,9 +122,9 @@ namespace RGR_BD
             {
                 return;
             }
-            var data_to_add = view.GetValuesForTable(columnsname.ColumnsName, false);
             string pk_str_name = model.GetPrimaryKeyColumn(current_table);
-            data_to_add.RemoveAll(item => item.Column.Equals(pk_str_name));
+            columnsname.ColumnsName.RemoveAll(item => item.Equals(pk_str_name));
+            var data_to_add = view.GetValuesForTable(columnsname.ColumnsName, false);
             bool error = model.AddDataToTableModel(data_to_add, current_table);
             if (ContinueText(error))
             {
@@ -175,6 +220,8 @@ namespace RGR_BD
                     return;
                 }
             }
+            string pk_str_name = model.GetPrimaryKeyColumn(current_table);
+            columnsname_res.ColumnsName.RemoveAll(item => item.Equals(pk_str_name));
             List<(string Column, string Value)> values_res = view.GetValuesForTable(columnsname_res.ColumnsName, true);
             bool error = model.UpdateDataInTable(values_res, current_table,res.choice);
             if (ContinueText(error))
