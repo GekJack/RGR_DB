@@ -374,5 +374,41 @@ namespace RGR_BD
             }
             return (false, tables);
         }
+        public bool DeleteDataOfTable(string table_name, int pk, string pk_str)
+        {
+            try
+            {
+                connection.Open();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Помилка при підключенні до бази данних");
+                return (true);
+            }
+            try
+            {
+                string query = $"DELETE FROM {table_name} WHERE {pk_str} = {pk}";
+                using (var cmd = new NpgsqlCommand(query, connection))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Помилка при видаленні рядка");
+                return (true);
+            }
+
+            try
+            {
+                connection.Close();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Помилка при закритті з'єднання з базою данних");
+                return (true);
+            }
+            return false;
+        }
     }
 }

@@ -42,6 +42,7 @@ namespace RGR_BD
                         }
                         break;
                     case 4:
+                        DeleteData();
                         break;
                     case 5:
                         if (current_table != "None")
@@ -58,6 +59,50 @@ namespace RGR_BD
                         break;
                 }
             }
+        }
+        private static void DeleteData()
+        {
+            var columnsname_res = model.GetColumnNameOfTable(current_table);
+            if (ContinueText(columnsname_res.error))
+            {
+                return;
+            }
+            var rows_res = model.GetRowsOfTable(current_table, 1);
+            if (ContinueText(rows_res.error))
+            {
+                return;
+            }
+            int i = 1;
+            (int choice, string page) res;
+            while (true)
+            {
+                res = view.ShowRowsToAction(rows_res.rows, columnsname_res.ColumnsName);
+                if (res.page.Equals("n"))
+                {
+                    i++;
+                }
+                else if (res.page.Equals("p") && i > 1)
+                {
+                    i--;
+                }
+                else if (!res.page.Equals(" "))
+                {
+                    Console.WriteLine("Ви на першій сторінці");
+                    Thread.Sleep(1000);
+                }
+                if (res.page.Equals(" "))
+                {
+                    break;
+                }
+                rows_res = model.GetRowsOfTable(current_table, i);
+                if (ContinueText(rows_res.error))
+                {
+                    return;
+                }
+            }
+            string pk_str = model.GetPrimaryKeyColumn(current_table);
+            bool error = model.DeleteDataOfTable(current_table, res.choice, pk_str);
+            if (ContinueText(error)) return;
         }
         private static bool ContinueText(bool error)
         {
