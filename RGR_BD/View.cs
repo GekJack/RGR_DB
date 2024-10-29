@@ -54,7 +54,7 @@ namespace RGR_BD
         {
             List<(string Column, string Value)> setColumns = new List<(string Column, string Value)>();
             if(flag) Console.WriteLine("Якщо хочете залишите старе значення, залишти строку пустою для відповідної колонки");
-            else Console.WriteLine("Задайте значення для нової строки в таблиці, pk можна пропустити");
+            else Console.WriteLine("Задайте значення для нової строки в таблиці");
             foreach (var column in columnsname)
             {
                 Console.WriteLine(column+":");

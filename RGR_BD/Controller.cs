@@ -77,9 +77,9 @@ namespace RGR_BD
             {
                 return;
             }
-            var data_to_add = view.GetValuesForTable(columnsname.ColumnsName, false);
             string pk_str_name = model.GetPrimaryKeyColumn(current_table);
-            data_to_add.RemoveAll(item => item.Column.Equals(pk_str_name));
+            columnsname.ColumnsName.RemoveAll(item => item.Equals(pk_str_name));
+            var data_to_add = view.GetValuesForTable(columnsname.ColumnsName, false);
             bool error = model.AddDataToTableModel(data_to_add, current_table);
             if (ContinueText(error))
             {
@@ -175,6 +175,8 @@ namespace RGR_BD
                     return;
                 }
             }
+            string pk_str_name = model.GetPrimaryKeyColumn(current_table);
+            columnsname_res.ColumnsName.RemoveAll(item => item.Equals(pk_str_name));
             List<(string Column, string Value)> values_res = view.GetValuesForTable(columnsname_res.ColumnsName, true);
             bool error = model.UpdateDataInTable(values_res, current_table,res.choice);
             if (ContinueText(error))
