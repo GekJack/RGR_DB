@@ -1,4 +1,6 @@
 ﻿
+using System.Net.NetworkInformation;
+
 namespace RGR_BD
 {
     public class Controller
@@ -55,6 +57,16 @@ namespace RGR_BD
                         }
                         break;
                     case 6:
+                        if (current_table != "None")
+                        {
+                            GenerateData();
+                        }
+                        else
+                        {
+                            Console.WriteLine("Оберіть таблицю для роботу!!!");
+                        }
+                        break;
+                    case 7:
                         cycle_run = !cycle_run;
                         break;
                 }
@@ -229,6 +241,18 @@ namespace RGR_BD
                return;
             }
 
+        }
+        private static void GenerateData()
+        {
+            int choice = view.GetCountRowsToGenerate();
+            string proc_name = $"generate_{current_table}";
+            bool error = model.GenerateDataToCurrentTable(proc_name, choice);
+            if (ContinueText(error))
+            {
+                return;
+            }
+            Console.WriteLine($"Було успішно згенеровано {choice} строк");
+            Thread.Sleep(1000);
         }
     }
 }

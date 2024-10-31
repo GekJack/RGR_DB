@@ -23,6 +23,7 @@ namespace RGR_BD
             catch (Exception ex)
             {
                 Console.WriteLine("Помилка при закритті з'єднання з базою данних");
+                Thread.Sleep(1000);
             }
         }
         public bool AddDataToTableModel(List<(string Column, string Value)> values,string table_name)
@@ -287,7 +288,7 @@ namespace RGR_BD
         public (bool error, List<List<string>> rows) GetRowsOfTable(string table_name, int page_num)
         {
             List<List<string>> rows = new List<List<string>>();
-            int pageSize = 2;
+            int pageSize = 50;
             int startRow = (page_num - 1) * pageSize;
             string pk_str_column = GetPrimaryKeyColumn(table_name);
             try
@@ -398,7 +399,42 @@ namespace RGR_BD
                 Console.WriteLine("Помилка при видаленні рядка");
                 return (true);
             }
-
+            try
+            {
+                connection.Close();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Помилка при закритті з'єднання з базою данних");
+                return (true);
+            }
+            return false;
+        }
+        public bool GenerateDataToCurrentTable(string proc_name, int count_rows)
+        {
+            try
+            {
+                connection.Open();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Помилка при підключенні до бази данних");
+                return (true);
+            }
+            try
+            {
+                string query = $"CALL {proc_name}({count_rows})";
+                using (var cmd = new NpgsqlCommand(query, connection))
+                {
+                    cmd.CommandTimeout = 0;
+                    cmd.ExecuteNonQuery();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Помилка при генерації випадкових данних" + ex.Message);
+                return (true);
+            }
             try
             {
                 connection.Close();

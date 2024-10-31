@@ -137,6 +137,24 @@ namespace RGR_BD
                 }
             }
         }
+        public int GetCountRowsToGenerate()
+        {
+            while (true)
+            {
+                int choice = 0;
+                Console.WriteLine($"Будь ласка, введіть кількість строк для формування");
+                string input_choice = Console.ReadLine();
+                if (int.TryParse(input_choice, out choice))
+                {
+                    return choice;
+                }
+                else
+                {
+                    Console.WriteLine($"Будь ласка, введіть число");
+                    Thread.Sleep(1000);
+                }
+            }
+        }
         public int ShowMenu()
         {
             while (true)
@@ -149,13 +167,14 @@ namespace RGR_BD
                 Console.WriteLine("3.Оновлення данних в поточній таблиці");
                 Console.WriteLine("4.Видалення данних з поточної таблиці");
                 Console.WriteLine("5.Вивести поточну таблицю");
-                Console.WriteLine("6.Вихід");
+                Console.WriteLine("6.Згенерувати випадкові записи до поточної таблиці");
+                Console.WriteLine("7.Вихід");
                 Console.WriteLine("\nОберіть опцію:");
                 string input_choice = Console.ReadLine();
 
                 if (int.TryParse(input_choice, out choice))
                 {
-                    if (choice >= 1 && choice <= 6)
+                    if (choice >= 1 && choice <= 7)
                     {
                         Console.WriteLine($"Ви обрали опцію: {choice}");
                         Thread.Sleep(1000);
@@ -163,12 +182,12 @@ namespace RGR_BD
                     }
                     else
                     {
-                        Console.WriteLine("Будь ласка, введіть число від 1 до 6");
+                        Console.WriteLine("Будь ласка, введіть число від 1 до 7");
                         Thread.Sleep(1500);
                     }
                 }
                 {
-                    Console.WriteLine($"Будь ласка, введіть число від 1 до 6");
+                    Console.WriteLine($"Будь ласка, введіть число від 1 до 7");
                     Thread.Sleep(1000);
                 }
             }
