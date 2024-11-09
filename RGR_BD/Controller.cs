@@ -1,7 +1,4 @@
-﻿
-using System.Net.NetworkInformation;
-
-namespace RGR_BD
+﻿namespace RGR_BD
 {
     public class Controller
     {
@@ -18,57 +15,83 @@ namespace RGR_BD
             while (cycle_run)
             {
                 int choice = view.ShowMenu();
-                switch (choice)
+                if (current_table == "None" && choice < 7 && choice != 1)
                 {
-                    case 1:
-                        ChangeCurTable();
-                        break;
-                    case 2:
-                        if (current_table != "None")
-                        {
+                    Console.WriteLine("Оберіть таблицю для роботи!!!");
+                    Thread.Sleep(1000);
+                }
+                else
+                {
+                    switch (choice)
+                    {
+                        case 1:
+                            ChangeCurTable();
+                            break;
+                        case 2:
                             AddDataToTable();
-                        }
-                        else
-                        {
-                            Console.WriteLine("Оберіть таблицю для роботу!!!");
-                        }
-                        break;
-                    case 3:
-                        if(current_table != "None")
-                        {
+                            break;
+                        case 3:
                             UpdateTableData();
-                        }
-                        else
-                        {
-                            Console.WriteLine("Оберіть таблицю для роботу!!!");
-                        }
-                        break;
-                    case 4:
-                        DeleteData();
-                        break;
-                    case 5:
-                        if (current_table != "None")
-                        {
+                            break;
+                        case 4:
+                            DeleteData();
+                            break;
+                        case 5:
                             ShowCurTable();
-                        }
-                        else
-                        {
-                            Console.WriteLine("Оберіть таблицю для роботу!!!");
-                        }
-                        break;
-                    case 6:
-                        if (current_table != "None")
-                        {
+                            break;
+                        case 6:
                             GenerateData();
-                        }
-                        else
-                        {
-                            Console.WriteLine("Оберіть таблицю для роботу!!!");
-                        }
-                        break;
-                    case 7:
-                        cycle_run = !cycle_run;
-                        break;
+                            break;
+                        case 7:
+                            Search(1);
+                            break;
+                        case 8:
+                            Search(2);
+                            break;
+                        case 9:
+                            Search(3);
+                            break;
+                        case 10:
+                            cycle_run = !cycle_run;
+                            break;
+                    }
+                }
+                
+            }
+        }
+        private static void Search(int num_of_search)
+        {
+            if (num_of_search == 1)
+            {
+                string str_choice = view.GetParamForSearch(1).ToString();
+                var res = model.SearchFirst(str_choice);
+                if (ContinueText(res.error))
+                {
+                    return;
+                }
+                view.ShowResOfSearch(res.str_res, num_of_search, res.time);
+            }
+            if (num_of_search == 2)
+            {
+                string str_choice = view.GetParamForSearch(2).ToString();
+                var res = model.SearchSecond(str_choice);
+                if (ContinueText(res.error))
+                {
+                    return;
+                }
+                view.ShowResOfSearch(res.str_res, num_of_search, res.time);
+            }
+            if (num_of_search == 3)
+            {
+                var str_choice = view.GetParamForSearch(3);
+                if (str_choice is (string city, string expYears))
+                {
+                    var res = model.SearchThird(city, expYears);
+                    if (ContinueText(res.error))
+                    {
+                        return;
+                    }
+                    view.ShowResOfSearch(res.str_res, num_of_search, res.time);
                 }
             }
         }
@@ -251,8 +274,8 @@ namespace RGR_BD
             {
                 return;
             }
-            Console.WriteLine($"Було успішно згенеровано {choice} строк");
-            Thread.Sleep(1000);
+            Console.WriteLine($"Було успішно згенеровано {choice} строк(Для продовження натисніть будь-яку клавішу)");
+            Console.ReadLine();
         }
     }
 }

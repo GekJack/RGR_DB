@@ -1,7 +1,4 @@
-﻿
-using static System.Net.Mime.MediaTypeNames;
-
-namespace RGR_BD
+﻿namespace RGR_BD
 {
     public class View
     {
@@ -33,6 +30,59 @@ namespace RGR_BD
                     Thread.Sleep(1000);
                     page = input_choice;
                     return page;
+                }
+                else
+                {
+                    Console.WriteLine($"Будь ласка, оберіть правильну опцію");
+                    Thread.Sleep(1000);
+                }
+            }
+        }
+        private void ShowColumnForSearch(List<string> columns)
+        {
+            for (int i = 0; i < columns.Count; i++)
+            {
+                Console.Write($"   {columns[i]}   ");
+            }
+            Console.WriteLine();
+        }
+        public void ShowResOfSearch(List<List<string>> rows, int num_of_search, long time)
+        {
+            List<string> search_f = new List<string>() { "status", "total_bookings", "total_cost" };
+            List<string> search_s = new List<string>() {"count_max_participants", "city", "count_total_bookings" };
+            List<string> search_t = new List<string>() { "city","rating", "avg_exp_years","avg_price" };
+            Console.Clear();
+            while (true)
+            {
+                switch (num_of_search)
+                {
+                    case 1:
+                        ShowColumnForSearch(search_f);
+                        break;
+                    case 2:
+                        ShowColumnForSearch(search_s);
+                        break;
+                    case 3:
+                        ShowColumnForSearch(search_t);
+                        break;
+                }
+                for (int i = 0; i < rows.Count; i++)
+                {
+                    for (int j = 0; j < rows[i].Count; j++)
+                    {
+                        rows[i][j] = rows[i][j].Replace("\n", "").Replace("\r", "").Replace("\t", "");
+                        Console.Write($"   {rows[i][j]}   ");
+                    }
+                    Console.WriteLine();
+                }
+                Console.WriteLine($"Час виконання пошуку(запроса до БД) = {time}ms");
+                Console.WriteLine($"\n\nВведіть \"q\"(Повернення в меню)");
+                string input_choice = Console.ReadLine();
+                if (input_choice.Equals("q"))
+                {
+                    Console.WriteLine($"Ви обрали : {input_choice}");
+                    Thread.Sleep(1000);
+                    return;
                 }
                 else
                 {
@@ -137,6 +187,30 @@ namespace RGR_BD
                 }
             }
         }
+        public object GetParamForSearch(int num_of_search)
+        {
+            if(num_of_search == 1)
+            {
+                Console.WriteLine("Напишіть за яким статусом робити пошук(true або false)");
+                string res_choice = Console.ReadLine();
+                return res_choice;
+            }
+            if (num_of_search == 2)
+            {
+                Console.WriteLine("Напишіть від якою дати шукати(Приклад: \'2024-01-01\')");
+                string res_choice = Console.ReadLine();
+                return res_choice;
+            }
+            else
+            {
+                Console.WriteLine("Напишіть місто за яким буде йти пошук та мінімальну кількість років досвіду");
+                Console.Write("Місто:");
+                string city = Console.ReadLine();
+                Console.Write("Роки досвіду:");
+                string exp_years = Console.ReadLine();
+                return (city, exp_years);
+            }
+        }
         public int GetCountRowsToGenerate()
         {
             while (true)
@@ -168,13 +242,16 @@ namespace RGR_BD
                 Console.WriteLine("4.Видалення данних з поточної таблиці");
                 Console.WriteLine("5.Вивести поточну таблицю");
                 Console.WriteLine("6.Згенерувати випадкові записи до поточної таблиці");
-                Console.WriteLine("7.Вихід");
+                Console.WriteLine("7.Знайти кількість і ціну бронювань залежно від статусу");
+                Console.WriteLine("8.Знайти максимальне кількість місць та кількість бронювань за датою та містом");
+                Console.WriteLine("9.Знайти середній досвід роботи тренерів та середню оплату заняття для кожного рейтингу за містом(З вказанням від якого досвіду шукати)");
+                Console.WriteLine("10.Вихід");
                 Console.WriteLine("\nОберіть опцію:");
                 string input_choice = Console.ReadLine();
 
                 if (int.TryParse(input_choice, out choice))
                 {
-                    if (choice >= 1 && choice <= 7)
+                    if (choice >= 1 && choice <= 10)
                     {
                         Console.WriteLine($"Ви обрали опцію: {choice}");
                         Thread.Sleep(1000);
@@ -182,12 +259,12 @@ namespace RGR_BD
                     }
                     else
                     {
-                        Console.WriteLine("Будь ласка, введіть число від 1 до 7");
+                        Console.WriteLine("Будь ласка, введіть число від 1 до 10");
                         Thread.Sleep(1500);
                     }
                 }
                 {
-                    Console.WriteLine($"Будь ласка, введіть число від 1 до 7");
+                    Console.WriteLine($"Будь ласка, введіть число від 1 до 10");
                     Thread.Sleep(1000);
                 }
             }

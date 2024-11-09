@@ -1,6 +1,6 @@
-﻿
-using Npgsql;
+﻿using Npgsql;
 using System.Data;
+using System.Diagnostics;
 
 namespace RGR_BD
 {
@@ -181,7 +181,7 @@ namespace RGR_BD
                     case "timestamp with time zone":
                         if (DateTimeOffset.TryParse(value, out var parsedValue))
                         {
-                            convertedValue = parsedValue.UtcDateTime;
+                            convertedValue = parsedValue.ToUniversalTime();
                         }
                         else
                         {
@@ -419,7 +419,7 @@ namespace RGR_BD
             catch (Exception ex)
             {
                 Console.WriteLine("Помилка при підключенні до бази данних");
-                return (true);
+                return true;
             }
             try
             {
@@ -433,7 +433,7 @@ namespace RGR_BD
             catch (Exception ex)
             {
                 Console.WriteLine("Помилка при генерації випадкових данних" + ex.Message);
-                return (true);
+                return true;
             }
             try
             {
@@ -442,9 +442,207 @@ namespace RGR_BD
             catch (Exception ex)
             {
                 Console.WriteLine("Помилка при закритті з'єднання з базою данних");
-                return (true);
+                return true;
             }
             return false;
+        }
+        public (bool error, List<List<string>> str_res, long time) SearchFirst(string status)
+        {
+            List<List<string>> rows = new List<List<string>>();
+            long executionTimeMs = 0;
+            try
+            {
+                connection.Open();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Помилка при підключенні до бази данних");
+                return (true, rows, 0);
+            }
+            try
+            {
+                string query = $@"SELECT 
+                                        b.status,
+                                        COUNT(b.booking_id) AS total_bookings,
+                                        SUM(s.price) AS total_cost
+                                    FROM 
+                                        bookings b
+                                    JOIN 
+                                        session s ON b.session_id = s.session_id
+                                    WHERE 
+                                        b.status = {status}
+                                    GROUP BY 
+                                        b.status
+                                    ORDER BY 
+                                        total_bookings DESC;";
+                Stopwatch stopwatch = Stopwatch.StartNew();
+                using (var cmd = new NpgsqlCommand(query, connection))
+                {
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            List<string> row = new List<string>();
+                            for (int i = 0; i < reader.FieldCount; i++)
+                            {
+                                row.Add(reader.GetValue(i).ToString());
+                            }
+                            rows.Add(row);
+                        }
+                    }
+                }
+                stopwatch.Stop();
+                executionTimeMs = stopwatch.ElapsedMilliseconds;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Помилка при пошукову запиті №1" + ex.Message);
+                return (true, rows, 0);
+            }
+            try
+            {
+                connection.Close();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Помилка при закритті з'єднання з базою данних");
+                return (true, rows, 0);
+            }
+            return (false, rows, executionTimeMs);
+        }
+        public (bool error, List<List<string>> str_res, long time) SearchSecond(string start_time)
+        {
+            List<List<string>> rows = new List<List<string>>();
+            long executionTimeMs = 0;
+            try
+            {
+                connection.Open();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Помилка при підключенні до бази данних");
+                return (true, rows, 0);
+            }
+            try
+            {
+                string query = $@"SELECT 
+                                    SUM(s.max_participants) AS count_max_participants,
+                                    l.city,
+	                                count(b.booking_id) as count_total_bookings
+                                FROM 
+                                    session s
+                                JOIN 
+                                    locations l ON s.location_id = l.location_id
+                                JOIN 
+                                    bookings b ON s.session_id = b.session_id
+                                WHERE          
+                                    s.start_time >= '{start_time}'
+                                GROUP BY
+                                    l.city
+                                ORDER BY 
+                                    count_max_participants DESC;";
+                Stopwatch stopwatch = Stopwatch.StartNew();
+                using (var cmd = new NpgsqlCommand(query, connection))
+                {
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            List<string> row = new List<string>();
+                            for (int i = 0; i < reader.FieldCount; i++)
+                            {
+                                row.Add(reader.GetValue(i).ToString());
+                            }
+                            rows.Add(row);
+                        }
+                    }
+                }
+                stopwatch.Stop();
+                executionTimeMs = stopwatch.ElapsedMilliseconds;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Помилка при пошукову запиті №1" + ex.Message);
+                return (true, rows, 0);
+            }
+            try
+            {
+                connection.Close();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Помилка при закритті з'єднання з базою данних");
+                return (true, rows, 0);
+            }
+            return (false, rows, executionTimeMs);
+        }
+        public (bool error, List<List<string>> str_res, long time) SearchThird(string city, string exp_years)
+        {
+            long executionTimeMs = 0;
+            List<List<string>> rows = new List<List<string>>();
+            try
+            {
+                connection.Open();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Помилка при підключенні до бази данних");
+                return (true, rows, 0);
+            }
+            try
+            {
+                string query = $@"SELECT 
+                                    l.city,
+                                    i.rating,
+                                    avg(i.experiance_years) as av_exp_yars,
+	                                avg(s.price::numeric) as avg_price
+                                FROM 
+                                    instructors i
+                                JOIN 
+                                    session s ON i.instructor_id = s.instructor_id
+                                JOIN 
+                                    locations l ON s.location_id = l.location_id
+                                WHERE        
+	                                l.city = '{city}'
+	                                and i.experiance_years >= {exp_years}
+                                GROUP BY 
+	                                l.city, i.rating
+                                ORDER BY 
+                                     i.rating DESC;";
+                Stopwatch stopwatch = Stopwatch.StartNew();
+                using (var cmd = new NpgsqlCommand(query, connection))
+                {
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            List<string> row = new List<string>();
+                            for (int i = 0; i < reader.FieldCount; i++)
+                            {
+                                row.Add(reader.GetValue(i).ToString());
+                            }
+                            rows.Add(row);
+                        }
+                    }
+                }
+                stopwatch.Stop();
+                executionTimeMs = stopwatch.ElapsedMilliseconds;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Помилка при пошукову запиті №1" + ex.Message);
+                return (true, rows, 0);
+            }
+            try
+            {
+                connection.Close();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Помилка при закритті з'єднання з базою данних");
+                return (true, rows, 0);
+            }
+            return (false, rows, executionTimeMs);
         }
     }
 }

@@ -1,6 +1,6 @@
-﻿using System;
+﻿using System.Collections.Generic;
 using System.Text;
-using Npgsql;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 namespace RGR_BD
 {
     class MainClass
@@ -14,3 +14,4 @@ namespace RGR_BD
         }
     }
 }
+
