@@ -562,7 +562,7 @@ namespace RGR_BD
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Помилка при пошукову запиті №1" + ex.Message);
+                Console.WriteLine("Помилка при пошукову запиті №2" + ex.Message);
                 return (true, rows, 0);
             }
             try
@@ -630,7 +630,7 @@ namespace RGR_BD
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Помилка при пошукову запиті №1" + ex.Message);
+                Console.WriteLine("Помилка при пошукову запиті №3" + ex.Message);
                 return (true, rows, 0);
             }
             try
