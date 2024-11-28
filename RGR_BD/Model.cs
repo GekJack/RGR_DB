@@ -1,245 +1,157 @@
-﻿using Npgsql;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using Npgsql;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Data;
 using System.Diagnostics;
+using System.Linq.Dynamic.Core;
+using System.Reflection;
 
 namespace RGR_BD
 {
     public class Model
     {
-        private NpgsqlConnection connection;
         public Model()
         {
-            string connectionString = "Host=localhost;Port=5432;Username=postgres;Password=Miha2004.;Database=Lab_1";
-            connection = new NpgsqlConnection(connectionString);
-        }
-        public void CloseConnection()
-        {
-            try
-            {   if(connection != null && connection.State == ConnectionState.Open)
-                {
-                    connection.Close();
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Помилка при закритті з'єднання з базою данних");
-                Thread.Sleep(1000);
-            }
         }
         public bool AddDataToTableModel(List<(string Column, string Value)> values,string table_name)
-        {
+        {       
             try
             {
-                connection.Open();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Помилка при підключенні до бази данних");
-                return true;
-            }
-            Dictionary<string, string> columnTypes = GetColumnTypes(table_name);
-            try
-            {
-                List<string> setClauses = new List<string>();
-                List<string> setValues = new List<string>();
-                foreach (var column in values)
+                using (var context = new AppDbContext())
                 {
-                    setClauses.Add($"{column.Column}");
-                    setValues.Add($"@{column.Column}");
-                }
-                string setClause_str = string.Join(",", setClauses);
-                string setValues_str = string.Join(",", setValues);
-                string query = $"INSERT INTO {table_name} ({setClause_str}) VALUES ({setValues_str});";
-                using (var cmd = new NpgsqlCommand(query, connection))
-                {
-                    foreach (var (Column, Value) in values)
+                    var entityType = context.Model.GetEntityTypes()
+                                          .FirstOrDefault(e => e.GetTableName() == table_name);
+                    var entity = Activator.CreateInstance(entityType.ClrType);
+                    foreach (var (column, value) in values)
                     {
-                        cmd.Parameters.AddWithValue($"@{Column}", GetConvertedValues(columnTypes, Column, Value));
-                    }
-                    cmd.ExecuteNonQuery();
-                }
+                        var property = entityType.ClrType.GetProperties()
+                                .FirstOrDefault(p =>
+                                p.GetCustomAttribute<ColumnAttribute>()?.Name.Equals(column, StringComparison.OrdinalIgnoreCase) == true);
+                        if (property != null)
+                        {
+                            object convertedValue = null;
+                            if (property.PropertyType == typeof(DateTime))
+                            {
+                                convertedValue = DateTime.Parse(value).ToUniversalTime();
+                            }
+                            else
+                            {
+                                convertedValue = Convert.ChangeType(value, property.PropertyType);
+                            }
+                            property.SetValue(entity, convertedValue);
+                            Console.WriteLine(convertedValue);
+                        }
+                        else
+                        {
+                            throw new Exception($"Столбец {column} не знайдено в {entityType.Name}");
+                        }
+                        var dbSetMethod = typeof(DbContext).GetMethods()
+                            .First(m => m.Name == "Set" && m.IsGenericMethodDefinition)
+                            .MakeGenericMethod(entityType.ClrType);
 
+                        var dbSet = dbSetMethod.Invoke(context, null);
+
+                        var addMethod = dbSet.GetType().GetMethod("Add");
+                        addMethod.Invoke(dbSet, new[] { entity });
+                    }
+                    context.SaveChanges();
+                }
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Помилка при додаванні данних " + ex.Message);
-                return true;
-            }
-            try
-            {
-                connection.Close();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Помилка при закритті з'єднання з базою данних");
+                Console.WriteLine("Помилка при додаванні данних " + ex.Message + " " + ex.InnerException.Message);
                 return true;
             }
 
             return false;
         }
-        private Dictionary<string, string> GetColumnTypes(string tableName)
-        {
-            var columnTypes = new Dictionary<string, string>();
-
-            string query = @$"
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_name = '{tableName}'";
-
-            using (var cmd = new NpgsqlCommand(query, connection))
-            {
-                using (var reader = cmd.ExecuteReader())
-                {
-                    while (reader.Read())
-                    {
-                        string columnName = reader.GetString(0);
-                        string dataType = reader.GetString(1);
-                        columnTypes[columnName] = dataType;
-                    }
-                }
-            }
-
-            return columnTypes;
-        }
         public string GetPrimaryKeyColumn(string table_name)
         {
             string pk_str = string.Empty;
-            try
-            {
-                connection.Open();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Помилка при підключенні до бази данних");
-                return pk_str;
-            }
-            try
-            {
-                string query = @"
-                SELECT kcu.column_name 
-                FROM information_schema.table_constraints AS tc
-                JOIN information_schema.key_column_usage AS kcu 
-                    ON kcu.constraint_name = tc.constraint_name 
-                WHERE tc.table_name = @TableName 
-                  AND tc.constraint_type = 'PRIMARY KEY';";
-                using (var cmd = new NpgsqlCommand(query, connection))
+            using (var context = new AppDbContext()){ 
+                try
                 {
-                    cmd.Parameters.AddWithValue("@TableName", table_name);
-                    using (var reader = cmd.ExecuteReader())
+                    var entityType = context.Model.GetEntityTypes()
+                                           .FirstOrDefault(e => e.GetTableName() == table_name);
+                    if (entityType == null)
                     {
-                        if (reader.Read())
-                        {
-                           pk_str = reader["column_name"].ToString();
-                        }
-                        else
-                        {
-                           pk_str = string.Empty;
-                        }
+                        throw new Exception($"Для таблиці {table_name} не знайдено метадані.");
                     }
+                    var pk = entityType.FindPrimaryKey();
+                    if (pk == null)
+                    {
+                        throw new Exception($"Для таблиці {table_name} не знайдено pk.");
+                    }
+                    pk_str = pk.Properties.FirstOrDefault()?.Name;
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Помилка при находженні первинного ключа ");
-                return pk_str;
-            }
-            try
-            {
-                connection.Close();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Помилка при закритті з'єднання з базою данних");
-                return pk_str;
+                catch (Exception ex) {
+                    Console.WriteLine("Помилка при отриманні pk " + ex.Message);
+                    return pk_str;
+                }
             }
             return pk_str;
-        }
-        private object GetConvertedValues(Dictionary<string, string> columnTypes, string column, string value)
-        {
-            object convertedValue = null;
-            if (columnTypes.TryGetValue(column, out var dataType))
-            {
-                switch (dataType.ToLower())
-                {
-                    case "integer":
-                        convertedValue = Convert.ToInt32(value);
-                        break;
-                    case "character varying":
-                    case "text":
-                        convertedValue = value;
-                        break;
-                    case "money":
-                    case "numeric":
-                        convertedValue = Convert.ToDecimal(value);
-                        break;
-                    case "boolean":
-                        convertedValue = Convert.ToBoolean(value);
-                        break;
-                    case "date":
-                        convertedValue = Convert.ToDateTime(value);
-                        break;
-                    case "timestamp with time zone":
-                        if (DateTimeOffset.TryParse(value, out var parsedValue))
-                        {
-                            convertedValue = parsedValue.ToUniversalTime();
-                        }
-                        else
-                        {
-                            throw new FormatException($"Невірний формат дати: {value}");
-                        }
-                        break;
-                    default:
-                        throw new ArgumentException($"Невідомий тип данних: {dataType}");
-                }
-            }
-            return convertedValue;
         }
         public bool UpdateDataInTable(List<(string Column, string Value)> values_res, string table_name, int pk)
         {
             string pk_str_column = GetPrimaryKeyColumn(table_name);
             try
             {
-                connection.Open();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Помилка при підключенні до бази данних");
-                return true;
-            }
-            Dictionary<string, string> columnTypes = GetColumnTypes(table_name);
-            try
-            {
-                List<string> setClauses = new List<string>();
-                foreach (var column in values_res) {
-                    setClauses.Add($"{column.Column} = @{column.Column}");
-                }
-                string setClause_str = string.Join(",", setClauses);
-                string query = $"UPDATE {table_name} SET {setClause_str} WHERE {pk_str_column} = {pk};";
-                using (var cmd = new NpgsqlCommand(query, connection))
+                using (var context = new AppDbContext())
                 {
-                    foreach (var (Column, Value) in values_res)
-                    {
-                        cmd.Parameters.AddWithValue($"@{Column}", GetConvertedValues(columnTypes, Column, Value));
-                    }
-                    cmd.ExecuteNonQuery();
-                }
+                    var entityType = context.Model.GetEntityTypes()
+                                          .FirstOrDefault(e => e.GetTableName() == table_name);
+                    var genericSetMethod = typeof(DbContext)
+                                   .GetMethods()
+                                   .First(m => m.Name == nameof(DbContext.Set) && m.IsGenericMethodDefinition)
+                                   .MakeGenericMethod(entityType.ClrType);
 
+                    var set = (IQueryable)genericSetMethod.Invoke(context, null);
+                    var castedSet = set as IQueryable;
+
+                    var entity = castedSet.Cast<object>()
+                        .FirstOrDefault(e => EF.Property<int>(e, pk_str_column) == pk);
+                    if (entity != null)
+                    {
+                        foreach (var (column, value) in values_res)
+                        {
+                            var property = entityType.ClrType.GetProperties()
+                                .FirstOrDefault(p =>
+                                p.GetCustomAttribute<ColumnAttribute>()?.Name.Equals(column, StringComparison.OrdinalIgnoreCase) == true);
+                            if (property != null)
+                            {
+                                object convertedValue = null;
+
+                                if(property.PropertyType == typeof(DateTime))
+                                {
+                                    convertedValue = DateTime.Parse(value).ToUniversalTime();
+                                }
+                                else
+                                {
+                                    convertedValue = Convert.ChangeType(value, property.PropertyType);
+                                }
+                                property.SetValue(entity, convertedValue);
+                            }
+                            else
+                            {
+                                throw new Exception($"Столбець {column} не знайдено в таблиці.");
+                            }
+                        }
+                        context.SaveChanges();
+                    }
+                    else
+                    {
+                        throw new Exception($"Запис з номером {pk} не знайдено.");
+                    }
+                }
             }
             catch (Exception ex)
             {
                 Console.WriteLine("Помилка при зміненні данних " + ex.Message);
                 return true;
             }
-            try
-            {
-                connection.Close();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Помилка при закритті з'єднання з базою данних");
-                return true;
-            }
-
             return false;
         }
         public (bool error, List<string> ColumnsName) GetColumnNameOfTable(string table_name)
@@ -247,40 +159,27 @@ namespace RGR_BD
             List<string> columnsname = new List<string>();
             try
             {
-                connection.Open();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Помилка при підключенні до бази данних");
-                return (true, columnsname);
-            }
-            try
-            {
-                string query = $"SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '{table_name}' ORDER BY ORDINAL_POSITION;";
-                using (var cmd = new NpgsqlCommand(query, connection))
+                using (var context = new AppDbContext())
                 {
-                    using (var reader = cmd.ExecuteReader())
+                    var designTimeModel = context.GetService<IDesignTimeModel>();
+                    var model = designTimeModel.Model;
+                    var entityType = model.GetEntityTypes()
+                                                 .FirstOrDefault(e => e.GetTableName() == table_name);
+
+                    if (entityType == null)
                     {
-                        while (reader.Read())
-                        {
-                            string columnName = reader.GetString(0);
-                            columnsname.Add(columnName);
-                        }
+                        throw new Exception($"Таблица {table_name} не найдена в модели.");
                     }
+
+                    columnsname = entityType.GetProperties()
+                                             .OrderBy(p => p.GetColumnOrder() ?? int.MaxValue)
+                                             .Select(p => p.GetColumnName())                  
+                                             .ToList();
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Помилка при отриманні списку колонок");
-                return (true, columnsname);
-            }
-            try
-            {
-                connection.Close();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Помилка при закритті з'єднання з базою данних");
+                Console.WriteLine("Помилка при отриманні назв столбців "+ex.Message);
                 return (true, columnsname);
             }
             return (false, columnsname);
@@ -290,47 +189,41 @@ namespace RGR_BD
             List<List<string>> rows = new List<List<string>>();
             int pageSize = 50;
             int startRow = (page_num - 1) * pageSize;
-            string pk_str_column = GetPrimaryKeyColumn(table_name);
-            try
-            {
-                connection.Open();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Помилка при підключенні до бази данних");
-                return (true, rows);
-            }
-            try
-            {
-                string query = $"SELECT * FROM {table_name} ORDER BY {pk_str_column} LIMIT {pageSize} OFFSET {startRow};";
-                using (var cmd = new NpgsqlCommand(query, connection))
+            string pkPropertyName = GetPrimaryKeyColumn(table_name);
+            try {
+                using (var context = new AppDbContext())
                 {
-                    using (var reader = cmd.ExecuteReader())
+                    var entityClrType = context.Model.GetEntityTypes()
+                                           .FirstOrDefault(e => e.GetTableName() == table_name).ClrType;
+                    var genericSetMethod = typeof(DbContext)
+                                   .GetMethods()
+                                   .First(m => m.Name == nameof(DbContext.Set) && m.IsGenericMethodDefinition)
+                                   .MakeGenericMethod(entityClrType);
+
+                    var set = (IQueryable)genericSetMethod.Invoke(context, null);
+                    var query = set
+                        .OrderBy($"{pkPropertyName} ASC") 
+                        .Skip(startRow)                   
+                        .Take(pageSize);                  
+
+                    foreach (var entity in query)
                     {
-                        while (reader.Read())
+                        var row = new List<string>();
+
+                        var properties = entity.GetType().GetProperties();
+                        foreach (var property in properties)
                         {
-                           List<string> row = new List<string>();
-                           for(int i = 0; i < reader.FieldCount; i++)
-                           {
-                                row.Add(reader.GetValue(i).ToString());
-                           }
-                           rows.Add(row);
+                            var value = property.GetValue(entity)?.ToString() ?? string.Empty;
+                            row.Add(value);
                         }
+
+                        rows.Add(row);
                     }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Помилка при отриманні списку строк" + ex.Message);
-                return (true, rows);
-            }
-            try
-            {
-                connection.Close();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Помилка при закритті з'єднання з базою данних");
+                Console.WriteLine($"Помилка при отриманні строк {table_name} {ex.Message}");
                 return (true, rows);
             }
             return (false, rows);
@@ -340,37 +233,17 @@ namespace RGR_BD
             List<string> tables = new List<string>();
             try
             {
-                connection.Open();
-            }
-            catch (Exception ex) { 
-                Console.WriteLine("Помилка при підключенні до бази данних");
-                return (true, tables);
-            }
-            try
-            {
-                string query = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';";
-                using (var cmd = new NpgsqlCommand(query, connection))
+                using (var context = new AppDbContext())
                 {
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            tables.Add(reader.GetString(0));
-                        }
-                    }
+                    var tableNames = context.Model.GetEntityTypes()
+                        .Select(t => t.GetTableName()) 
+                        .ToList();
+
+                    tables.AddRange(tableNames);
                 }
             }
             catch (Exception ex) {
-                Console.WriteLine("Помилка при отриманні списку таблиць");
-                return (true, tables);
-            }
-            try
-            {
-                connection.Close();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Помилка при закритті з'єднання з базою данних");
+                Console.WriteLine("Помилка при отриманні списку таблиць " + ex.Message );
                 return (true, tables);
             }
             return (false, tables);
@@ -379,33 +252,45 @@ namespace RGR_BD
         {
             try
             {
-                connection.Open();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Помилка при підключенні до бази данних");
-                return (true);
-            }
-            try
-            {
-                string query = $"DELETE FROM {table_name} WHERE {pk_str} = {pk}";
-                using (var cmd = new NpgsqlCommand(query, connection))
+                using (var context = new AppDbContext())
                 {
-                    cmd.ExecuteNonQuery();
+                    var entityType = context.Model.GetEntityTypes()
+                                           .FirstOrDefault(e => e.GetTableName() == table_name);
+                    if (entityType == null)
+                    {
+                        throw new Exception($"Для таблиці {table_name} не знайдено метадані.");
+                    }
+                    var genericSetMethod = typeof(DbContext)
+                                   .GetMethods()
+                                   .First(m => m.Name == nameof(DbContext.Set) && m.IsGenericMethodDefinition)
+                                   .MakeGenericMethod(entityType.ClrType);
+                    var set = (IQueryable)genericSetMethod.Invoke(context, null);
+                    var pkProperty = entityType.FindPrimaryKey()?.Properties.FirstOrDefault(p => p.Name == pk_str);
+
+                    if (pkProperty == null)
+                    {
+                        throw new Exception($"Поле {pk_str} не является первичным ключом.");
+                    }
+
+                    var castedSet = set as IQueryable;
+
+                    var entity = castedSet.Cast<object>()
+                        .FirstOrDefault(e => EF.Property<int>(e, pk_str) == pk);
+
+                    if (entity != null)
+                    {
+                        context.Remove(entity);
+                        context.SaveChanges();
+                    }
+                    else
+                    {
+                        throw new Exception($"Запис з номером {pk} не знайдено.");
+                    }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Помилка при видаленні рядка");
-                return (true);
-            }
-            try
-            {
-                connection.Close();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Помилка при закритті з'єднання з базою данних");
+                Console.WriteLine($"Помилка при видаленні данних {ex.Message}");
                 return (true);
             }
             return false;
@@ -414,20 +299,10 @@ namespace RGR_BD
         {
             try
             {
-                connection.Open();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Помилка при підключенні до бази данних");
-                return true;
-            }
-            try
-            {
-                string query = $"CALL {proc_name}({count_rows})";
-                using (var cmd = new NpgsqlCommand(query, connection))
+                using (var context = new AppDbContext())
                 {
-                    cmd.CommandTimeout = 0;
-                    cmd.ExecuteNonQuery();
+                    var query = $"CALL {proc_name}({count_rows})";
+                    context.Database.ExecuteSqlRaw(query);
                 }
             }
             catch (Exception ex)
@@ -435,77 +310,64 @@ namespace RGR_BD
                 Console.WriteLine("Помилка при генерації випадкових данних" + ex.Message);
                 return true;
             }
-            try
-            {
-                connection.Close();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Помилка при закритті з'єднання з базою данних");
-                return true;
-            }
             return false;
         }
+
         public (bool error, List<List<string>> str_res, long time) SearchFirst(string status)
         {
             List<List<string>> rows = new List<List<string>>();
             long executionTimeMs = 0;
-            try
-            {
-                connection.Open();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Помилка при підключенні до бази данних");
-                return (true, rows, 0);
-            }
-            try
-            {
-                string query = $@"SELECT 
-                                        b.status,
-                                        COUNT(b.booking_id) AS total_bookings,
-                                        SUM(s.price) AS total_cost
-                                    FROM 
-                                        bookings b
-                                    JOIN 
-                                        session s ON b.session_id = s.session_id
-                                    WHERE 
-                                        b.status = {status}
-                                    GROUP BY 
-                                        b.status
-                                    ORDER BY 
-                                        total_bookings DESC;";
+                //string query = $@"SELECT 
+                //                        b.status,
+                //                        COUNT(b.booking_id) AS total_bookings,
+                //                        SUM(s.price) AS total_cost
+                //                    FROM 
+                //                        bookings b
+                //                    JOIN 
+                //                        session s ON b.session_id = s.session_id
+                //                    WHERE 
+                //                        b.status = {status}
+                //                    GROUP BY 
+                //                        b.status
+                //                    ORDER BY 
+                //                        total_bookings DESC;";
                 Stopwatch stopwatch = Stopwatch.StartNew();
-                using (var cmd = new NpgsqlCommand(query, connection))
+            try {
+                using (var context = new AppDbContext())
                 {
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        while (reader.Read())
+                    var result = context.Bookings
+                        .Where(b => b.Status == bool.Parse(status))
+                        .Join(
+                            context.Sessions,
+                            b => b.SessionId,
+                            s => s.SessionId,
+                            (b, s) => new { b.Status, BookingId = b.BookingId, Price = (decimal)s.PriceMoney }
+                        )
+                        .GroupBy(
+                            bs => bs.Status,
+                            bs => new { bs.BookingId, bs.Price }
+                        )
+                        .Select(g => new
                         {
-                            List<string> row = new List<string>();
-                            for (int i = 0; i < reader.FieldCount; i++)
-                            {
-                                row.Add(reader.GetValue(i).ToString());
-                            }
-                            rows.Add(row);
-                        }
-                    }
+                            Status = g.Key,
+                            TotalBookings = g.Count(),
+                            TotalCost = g.Sum(x => x.Price)
+                        })
+                        .OrderByDescending(x => x.TotalBookings)
+                        .ToList();
+                    rows = result.Select(r => new List<string>
+                    {
+                        r.Status.ToString(),
+                        r.TotalBookings.ToString(),
+                        r.TotalCost.ToString()
+                    }).ToList();
+                    stopwatch.Stop();
+                    executionTimeMs = stopwatch.ElapsedMilliseconds;
                 }
-                stopwatch.Stop();
-                executionTimeMs = stopwatch.ElapsedMilliseconds;
             }
             catch (Exception ex)
             {
                 Console.WriteLine("Помилка при пошукову запиті №1" + ex.Message);
-                return (true, rows, 0);
-            }
-            try
-            {
-                connection.Close();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Помилка при закритті з'єднання з базою данних");
                 return (true, rows, 0);
             }
             return (false, rows, executionTimeMs);
@@ -516,46 +378,63 @@ namespace RGR_BD
             long executionTimeMs = 0;
             try
             {
-                connection.Open();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Помилка при підключенні до бази данних");
-                return (true, rows, 0);
-            }
-            try
-            {
-                string query = $@"SELECT 
-                                    SUM(s.max_participants) AS count_max_participants,
-                                    l.city,
-	                                count(b.booking_id) as count_total_bookings
-                                FROM 
-                                    session s
-                                JOIN 
-                                    locations l ON s.location_id = l.location_id
-                                JOIN 
-                                    bookings b ON s.session_id = b.session_id
-                                WHERE          
-                                    s.start_time >= '{start_time}'
-                                GROUP BY
-                                    l.city
-                                ORDER BY 
-                                    count_max_participants DESC;";
+                //string query = $@"SELECT 
+                //                    SUM(s.max_participants) AS count_max_participants,
+                //                    l.city,
+                //                 count(b.booking_id) as count_total_bookings
+                //                FROM 
+                //                    session s
+                //                JOIN 
+                //                    locations l ON s.location_id = l.location_id
+                //                JOIN 
+                //                    bookings b ON s.session_id = b.session_id
+                //                WHERE          
+                //                    s.start_time >= '{start_time}'
+                //                GROUP BY
+                //                    l.city
+                //                ORDER BY 
+                //                    count_max_participants DESC;";
                 Stopwatch stopwatch = Stopwatch.StartNew();
-                using (var cmd = new NpgsqlCommand(query, connection))
+                using (var context = new AppDbContext())
                 {
-                    using (var reader = cmd.ExecuteReader())
+                    DateTime parsedStartTime;
+                    if (!DateTime.TryParse(start_time, out parsedStartTime))
                     {
-                        while (reader.Read())
-                        {
-                            List<string> row = new List<string>();
-                            for (int i = 0; i < reader.FieldCount; i++)
-                            {
-                                row.Add(reader.GetValue(i).ToString());
-                            }
-                            rows.Add(row);
-                        }
+                        throw new Exception("Невірний формат дати.");
+                        
                     }
+                    var result = context.Sessions
+                        .Where(s => s.StartTime >= parsedStartTime.ToUniversalTime())
+                        .Join(
+                            context.Locations,
+                            s => s.LocationId,
+                            l => l.LocationId,
+                            (s, l) => new { s, l }
+                        )
+                        .Join(
+                            context.Bookings,
+                            sl => sl.s.SessionId,
+                            b => b.SessionId,
+                            (sl, b) => new { sl.s, sl.l, b }
+                        )
+                        .GroupBy(
+                            x => x.l.City,
+                            x => new { x.s.MaxParticipants, x.b.BookingId }
+                        )
+                        .Select(g => new
+                        {
+                            City = g.Key,
+                            CountMaxParticipants = g.Sum(x => x.MaxParticipants),
+                            CountTotalBookings = g.Count()
+                        })
+                        .OrderByDescending(x => x.CountMaxParticipants)
+                        .ToList();
+                    rows = result.Select(r => new List<string>
+                    {
+                        r.City,
+                        r.CountMaxParticipants.ToString(),
+                        r.CountTotalBookings.ToString()
+                    }).ToList();
                 }
                 stopwatch.Stop();
                 executionTimeMs = stopwatch.ElapsedMilliseconds;
@@ -565,81 +444,65 @@ namespace RGR_BD
                 Console.WriteLine("Помилка при пошукову запиті №2" + ex.Message);
                 return (true, rows, 0);
             }
-            try
-            {
-                connection.Close();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Помилка при закритті з'єднання з базою данних");
-                return (true, rows, 0);
-            }
             return (false, rows, executionTimeMs);
         }
+        //TODO Фікс цього методу бо не працює через money
         public (bool error, List<List<string>> str_res, long time) SearchThird(string city, string exp_years)
         {
             long executionTimeMs = 0;
             List<List<string>> rows = new List<List<string>>();
             try
             {
-                connection.Open();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Помилка при підключенні до бази данних");
-                return (true, rows, 0);
-            }
-            try
-            {
-                string query = $@"SELECT 
-                                    l.city,
-                                    i.rating,
-                                    avg(i.experiance_years) as av_exp_yars,
-	                                avg(s.price::numeric) as avg_price
-                                FROM 
-                                    instructors i
-                                JOIN 
-                                    session s ON i.instructor_id = s.instructor_id
-                                JOIN 
-                                    locations l ON s.location_id = l.location_id
-                                WHERE        
-	                                l.city = '{city}'
-	                                and i.experiance_years >= {exp_years}
-                                GROUP BY 
-	                                l.city, i.rating
-                                ORDER BY 
-                                     i.rating DESC;";
                 Stopwatch stopwatch = Stopwatch.StartNew();
-                using (var cmd = new NpgsqlCommand(query, connection))
+                using (var context = new AppDbContext())
                 {
-                    using (var reader = cmd.ExecuteReader())
+                    string query = $@"
+                            SELECT 
+                                l.city,
+                                i.rating,
+                                AVG(i.experiance_years) AS av_exp_yars,
+                                AVG(s.price::numeric) AS avg_price
+                            FROM 
+                                instructors i
+                            JOIN 
+                                session s ON i.instructor_id = s.instructor_id
+                            JOIN 
+                                locations l ON s.location_id = l.location_id
+                            WHERE        
+                                l.city = '{city}' 
+                                AND i.experiance_years >= {exp_years}
+                            GROUP BY 
+                                l.city, i.rating
+                            ORDER BY 
+                                i.rating DESC";
+                    using (var command = context.Database.GetDbConnection().CreateCommand())
                     {
-                        while (reader.Read())
+                        command.CommandText = query;
+                        command.CommandType = System.Data.CommandType.Text;
+
+                        context.Database.OpenConnection();
+
+                        using (var reader = command.ExecuteReader())
                         {
-                            List<string> row = new List<string>();
-                            for (int i = 0; i < reader.FieldCount; i++)
+                            while (reader.Read())
                             {
-                                row.Add(reader.GetValue(i).ToString());
+                                var row = new List<string>();
+                                for (int i = 0; i < reader.FieldCount; i++)
+                                {
+                                    row.Add(reader[i]?.ToString() ?? string.Empty);
+                                }
+                                rows.Add(row);
                             }
-                            rows.Add(row);
                         }
                     }
+
+                    stopwatch.Stop();
+                    executionTimeMs = stopwatch.ElapsedMilliseconds;
                 }
-                stopwatch.Stop();
-                executionTimeMs = stopwatch.ElapsedMilliseconds;
             }
             catch (Exception ex)
             {
                 Console.WriteLine("Помилка при пошукову запиті №3" + ex.Message);
-                return (true, rows, 0);
-            }
-            try
-            {
-                connection.Close();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Помилка при закритті з'єднання з базою данних");
                 return (true, rows, 0);
             }
             return (false, rows, executionTimeMs);

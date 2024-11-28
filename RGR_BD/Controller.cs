@@ -145,7 +145,7 @@
             {
                 Console.WriteLine("Continue y/n?");
                 string continue_choice = Console.ReadLine();
-                if (continue_choice.ToLower() == "y" || continue_choice.ToLower() == "yes") { model.CloseConnection(); return true ; }
+                if (continue_choice.ToLower() == "y" || continue_choice.ToLower() == "yes") return true;
                 else if (continue_choice.ToLower() == "n" || continue_choice.ToLower() == "no") Environment.Exit(0);
             }
             return false ;
