@@ -446,7 +446,6 @@ namespace RGR_BD
             }
             return (false, rows, executionTimeMs);
         }
-        //TODO Фікс цього методу бо не працює через money
         public (bool error, List<List<string>> str_res, long time) SearchThird(string city, string exp_years)
         {
             long executionTimeMs = 0;
